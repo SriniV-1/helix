@@ -34,11 +34,14 @@ JMH, warm JVM, single core (Apple Silicon, JDK 24). Reproduce with `./gradlew jm
 | Path | Result |
 | --- | --- |
 | ITCH decode only (to counting sink) | **~61M messages/sec** (12.3 ops/s × 5M) |
-| Decode + full order-book rebuild | **~5.0M messages/sec** (1.0 ops/s × 5M) |
+| Decode + full order-book rebuild, 1 thread | **~5.0M messages/sec** (1.0 ops/s × 5M) |
+| Decode + rebuild, 4-shard sharded replay | **~9.6M messages/sec** (2.2× single-thread) |
 | Book op, add+delete pair (SampleTime) | p50 **83 ns**, p99 **208 ns**, avg 70 ns |
 
-At the end-to-end rate a full ITCH trading day (~230M messages) rebuilds in
-roughly 45 seconds.
+The sharded pipeline (`engine/ShardedReplay`) partitions books across worker
+threads by stock-locate id; on an 8-core machine 4 shards is the sweet spot (8
+shards oversubscribe once the reader thread is counted). At the sharded rate a
+full ITCH trading day (~230M messages) rebuilds in roughly 24 seconds.
 
 ## Allocation
 
@@ -86,7 +89,8 @@ itch/    ItchParser, ItchListener        — zero-alloc ITCH 5.0 decoder
 book/    OrderBook, PriceLevel, Order, Pool, BookManager, MatchingEngine
          PriceLadder                     — evaluated array-backed level store
 io/      ItchFileReader, ItchWriter, SyntheticCapture
-engine/  Replay, AllocationProfile       — end-to-end driver + JFR alloc check
+engine/  Replay, ShardedReplay,          — single- and multi-threaded drivers
+         AllocationProfile               — JFR / exact allocation check
 docs/    index.html                      — live in-browser demo (GitHub Pages)
 ```
 
@@ -108,4 +112,4 @@ and its tests are kept to document the tradeoff rather than hide it.
 - Adaptive per-book store: hash-map by default, promote a hot instrument to a
   ladder once its depth justifies the array.
 - Real ITCH capture ingestion path alongside the synthetic generator.
-- Multi-threaded replay sharded by stock-locate id.
+- Pin worker threads to cores and split the reader across NUMA nodes.
