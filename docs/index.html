@@ -59,6 +59,12 @@
   .phead h2 { font-family:var(--mono); font-size:10.5px; letter-spacing:.24em; text-transform:uppercase;
               color:var(--muted); font-weight:500; }
   .phead .aux { font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; color:var(--muted2); }
+  .pace { display:flex; gap:4px; }
+  .pace button { font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase;
+                 color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:5px;
+                 padding:4px 9px; cursor:pointer; transition:.15s; }
+  .pace button:hover { color:var(--ink); border-color:var(--muted2); }
+  .pace button.on { color:var(--spark); border-color:var(--spark); }
 
   /* ---- ladder (hero) ---- */
   .ladder { padding:6px 0; }
@@ -171,7 +177,12 @@
     <section class="panel">
       <div class="phead">
         <h2>Order Book — HELX</h2>
-        <span class="aux" id="bookAux">depth · price × size × orders</span>
+        <div class="pace" id="pace">
+          <button data-ms="0">Pause</button>
+          <button data-ms="600">Slow</button>
+          <button data-ms="240" class="on">Live</button>
+          <button data-ms="70">Fast</button>
+        </div>
       </div>
       <div class="ladder">
         <div id="asks"></div>
@@ -207,8 +218,8 @@
       </section>
 
       <section class="stats" id="stats">
-        <div class="stat"><div class="k">Demo · orders/s</div><div class="v" id="sOps">0</div></div>
-        <div class="stat"><div class="k">Demo · matches/s</div><div class="v" id="sMatch">0</div></div>
+        <div class="stat"><div class="k">Orders processed</div><div class="v" id="sOps">0</div></div>
+        <div class="stat"><div class="k">Trades printed</div><div class="v" id="sMatch">0</div></div>
         <div class="stat"><div class="k">Resting orders</div><div class="v" id="sRest">0</div></div>
         <div class="stat"><div class="k">Volume traded</div><div class="v" id="sVol">0</div></div>
         <div class="stat eng"><div class="k">Engine · decode</div><div class="v">61<small>M msg/s</small></div></div>
@@ -284,7 +295,7 @@ function rng(){ seed^=seed<<13; seed^=seed>>>17; seed^=seed<<5; return ((seed>>>
 const book=new Book();
 let fair=10000;           // fair value in cents ($100.00)
 let last=fair, prevLast=fair;
-let volume=0, opsWin=0, matchWin=0;
+let volume=0, evtCount=0, tradeCount=0;
 const prices=[];          // last-trade history for chart
 const tapeRows=[];
 
@@ -301,14 +312,14 @@ seedBook();
 
 const flashRefs=new Set();
 function onFill(px,shares,aggr,restRef){
-  last=px; volume+=shares; matchWin++;
+  last=px; volume+=shares; tradeCount++;
   addTape(px,shares,aggr);
   flashRefs.add(px);
 }
 
 /* one synthetic event */
 function step(){
-  opsWin++;
+  evtCount++;
   // fair value random walk
   fair += (rng()<0.5?-1:1)*((rng()*2)|0)*TICK;
   const r=rng();
@@ -350,11 +361,13 @@ sendBtn.onclick=()=>{
   const sz=parseInt(document.getElementById('inSize').value,10);
   if(!(px>0)|| !(sz>0)){ hint.textContent='Enter a positive price and size.'; return; }
   const s=mySide==='buy'?'B':'S'; let got=0;
+  prevLast=last;
   const res=book.cross(s,sz,px,false,(fpx,fsh,aggr,ref)=>{ onFill(fpx,fsh,aggr,ref); got+=fsh; });
   if(res.residual>0) book.add(book.nextRef++, s, res.residual, px);
   hint.textContent = got>0
     ? `Filled ${got.toLocaleString()} @ up to $${(last/100).toFixed(2)}` + (res.residual>0?`, ${res.residual} rested.`:'.')
     : `No cross — ${sz.toLocaleString()} rested at $${(px/100).toFixed(2)}.`;
+  renderAll();               // reflect your order immediately, even when paused
 };
 
 /* ---- rendering ---- */
@@ -439,26 +452,34 @@ function microBench(){
   document.getElementById('sBench').innerHTML=(opsSec/1e6).toFixed(1)+'<small>M/s</small>';
 }
 
-/* ---- loops ---- */
-const BATCH=45;                           // events per animation frame
-function tick(){
-  prevLast=last;
-  for(let i=0;i<BATCH;i++) step();
+/* ---- render + counters ---- */
+function renderAll(){
   prices.push(last); if(prices.length>240) prices.shift();
   renderLadder(); renderTape(); renderChart();
-  requestAnimationFrame(tick);
 }
-setInterval(()=>{                         // per-second counters
-  document.getElementById('sOps').textContent=(opsWin).toLocaleString();
-  document.getElementById('sMatch').textContent=(matchWin).toLocaleString();
+setInterval(()=>{                         // refresh stat tiles at a calm cadence
+  document.getElementById('sOps').textContent=evtCount.toLocaleString();
+  document.getElementById('sMatch').textContent=tradeCount.toLocaleString();
   document.getElementById('sRest').textContent=book.restingCount().toLocaleString();
   document.getElementById('sVol').textContent=volume>1e6?(volume/1e6).toFixed(1)+'M':volume.toLocaleString();
-  opsWin=0; matchWin=0;
-},1000);
+},400);
+
+/* ---- paced simulation loop (one event at a time, human-readable) ---- */
+let paceMs=240, simTimer=null;
+function simTick(){ prevLast=last; step(); renderAll(); }
+function schedule(){ if(paceMs>0) simTimer=setTimeout(()=>{ simTick(); schedule(); }, paceMs); }
+function setPace(ms){
+  paceMs=ms; clearTimeout(simTimer);
+  document.querySelectorAll('#pace button').forEach(b=>b.classList.toggle('on', +b.dataset.ms===ms));
+  document.getElementById('liveState').textContent = ms===0 ? 'Paused' : 'Market open';
+  if(ms>0) schedule();
+}
+document.querySelectorAll('#pace button').forEach(b=> b.onclick=()=>setPace(+b.dataset.ms));
 
 setSide('buy');
 microBench();
-requestAnimationFrame(tick);
+renderAll();
+schedule();
 </script>
 </body>
 </html>
