@@ -40,6 +40,21 @@ JMH, warm JVM, single core (Apple Silicon, JDK 24). Reproduce with `./gradlew jm
 At the end-to-end rate a full ITCH trading day (~230M messages) rebuilds in
 roughly 45 seconds.
 
+## Allocation
+
+`AllocationProfile` (in `engine/`) proves the steady-state hot path allocates
+nothing, two independent ways: exact HotSpot per-thread accounting
+(`ThreadMXBean.getThreadAllocatedBytes`) reports **0 bytes/message** on decode and
+**0 bytes/op** on book churn after warmup, cross-checked by a **Java Flight Recorder**
+`ObjectAllocationSample` recording that finds zero samples attributed to engine
+code. It writes `captures/alloc.jfr` for inspection.
+
+```bash
+./gradlew -q compileJava
+CP="build/classes/java/main:$(find ~/.gradle -name 'agrona-*.jar' | head -1)"
+java -cp "$CP" dev.srini.helix.engine.AllocationProfile
+```
+
 ## Correctness
 
 `OrderBookTest` pins price-time-priority semantics — FIFO time priority within a
@@ -69,15 +84,28 @@ java -cp "$CP" dev.srini.helix.engine.Replay captures/day.itch
 ```
 itch/    ItchParser, ItchListener        — zero-alloc ITCH 5.0 decoder
 book/    OrderBook, PriceLevel, Order, Pool, BookManager, MatchingEngine
+         PriceLadder                     — evaluated array-backed level store
 io/      ItchFileReader, ItchWriter, SyntheticCapture
-engine/  Replay                          — end-to-end driver
+engine/  Replay, AllocationProfile       — end-to-end driver + JFR alloc check
 docs/    index.html                      — live in-browser demo (GitHub Pages)
 ```
 
+## Engineering notes
+
+**Array-backed price ladder — evaluated, not adopted.** `PriceLadder` stores
+levels in a windowed contiguous array indexed by tick offset, so level lookup is
+one array read and next-best on collapse is a short cache-friendly walk, with a
+hash-map fallback for out-of-window/unaligned prices. Benchmarked head to head
+against the hash-map book: it **halved single-book add/cancel p50 (83 ns → 42 ns)**
+but did **not** win the full 500-book replay — one sparse array per side per book
+adds enough cache pressure that end-to-end throughput came in at/below the hash-map
+book (~4.5M vs ~5.0M msgs/sec), and no single window size won both the deep-single-book
+and many-shallow-book cases. The hash-map book stays in production; `PriceLadder`
+and its tests are kept to document the tradeoff rather than hide it.
+
 ## Roadmap
 
-- Array-backed price ladder to replace the best-level rescan on level collapse
-  (the one known non-constant step under heavy top-of-book churn).
-- Java Flight Recorder allocation profiling wired into CI to assert zero
-  steady-state allocation on the hot path.
+- Adaptive per-book store: hash-map by default, promote a hot instrument to a
+  ladder once its depth justifies the array.
 - Real ITCH capture ingestion path alongside the synthetic generator.
+- Multi-threaded replay sharded by stock-locate id.
