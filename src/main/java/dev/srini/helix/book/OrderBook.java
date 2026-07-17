@@ -149,6 +149,32 @@ public final class OrderBook {
     }
 
     // ------------------------------------------------------------------
+    // Matching support (package-private; used by MatchingEngine)
+    // ------------------------------------------------------------------
+
+    /** Resting order with best price and oldest time on {@code side}, or null if empty. */
+    Order bestRestingOrder(byte side) {
+        final int price = side == BUY ? bestBid : bestAsk;
+        if (price == NO_PRICE) {
+            return null;
+        }
+        final PriceLevel level = levels(side).get(price);
+        return level == null ? null : level.head;
+    }
+
+    /**
+     * Fill {@code shares} against a resting order, removing it once depleted and
+     * promoting the next best level if that empties the current one.
+     */
+    void fillResting(Order resting, int shares) {
+        resting.shares -= shares;
+        resting.level.totalShares -= shares;
+        if (resting.shares <= 0) {
+            remove(resting);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Internals
     // ------------------------------------------------------------------
 
