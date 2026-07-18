@@ -75,6 +75,9 @@
            background:transparent; border:1px solid var(--line); border-radius:9px; color:var(--muted);
            font-size:14px; transition:.15s; }
   .theme:hover { color:var(--ink); border-color:var(--line2); }
+  .src { font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase;
+         color:var(--muted); border:1px solid var(--line); border-radius:7px; padding:5px 9px; }
+  .src.java { color:var(--bid); border-color:color-mix(in srgb, var(--bid) 40%, transparent); }
 
   /* ---------- hero ---------- */
   .hero { display:grid; grid-template-columns:auto 1px 1fr 1fr 1fr; align-items:center; gap:26px;
@@ -191,6 +194,7 @@
       <span class="sub">Matching Engine · NASDAQ ITCH 5.0</span>
     </div>
     <div class="spine-r">
+      <span class="src" id="srcBadge" title="Data source">Simulated</span>
       <div class="pace" id="pace">
         <button data-ms="0">Pause</button>
         <button data-ms="600">Slow</button>
@@ -264,11 +268,18 @@
   </div>
 
   <div class="foot">
-    <span>Live demo — a JS port of the Helix matching engine, matching in your browser.</span>
+    <span id="footNote">Live demo — matching in your browser.</span>
     <span>Engine figures: JMH · JDK 24 · 4-shard replay &nbsp;·&nbsp; <a href="https://github.com/SriniV-1/helix" target="_blank" rel="noopener">github.com/SriniV-1/helix</a></span>
   </div>
 </div>
 
+<script>
+  /* Point this at your deployed Java engine (DemoServer) to drive Buy/Sell and the
+     book from the REAL engine. Leave empty to use the same origin (the local
+     server) and fall back to the in-browser simulation if none is reachable.
+     You can also override at runtime with ?api=https://your-engine.example.com */
+  window.HELIX_API = "";
+</script>
 <script>
 "use strict";
 /* Price-time-priority matching engine — faithful JS port of the Java book.
@@ -309,6 +320,10 @@ class Book {
 let seed=0x9e3779b9;
 function rng(){ seed^=seed<<13; seed^=seed>>>17; seed^=seed<<5; return ((seed>>>0)/4294967296); }
 
+const API = (new URLSearchParams(location.search).get('api') || window.HELIX_API || '').replace(/\/$/,'');
+let MODE = 'sim';                 // 'sim' | 'connected'
+const flashPx = new Set(); let lastTradeTs = 0;
+
 const book=new Book();
 let fair=10000, open=10000, last=fair, prevLast=fair;
 let volume=0, evtCount=0, tradeCount=0;
@@ -319,10 +334,7 @@ function seedBook(){
     for(let k=0;k<n;k++) book.add(book.nextRef++, 'B', (2+((rng()*18)|0))*100, fair-i*TICK);
     for(let k=0;k<n;k++) book.add(book.nextRef++, 'S', (2+((rng()*18)|0))*100, fair+i*TICK); }
 }
-seedBook();
-
-const flashRefs=new Set();
-function onFill(px,shares,aggr){ last=px; volume+=shares; tradeCount++; addTape(px,shares,aggr); flashRefs.add(px); }
+function onFill(px,shares,aggr){ last=px; volume+=shares; tradeCount++; addTape(px,shares,aggr); }
 
 function step(){
   evtCount++;
@@ -344,53 +356,77 @@ const tBuy=document.getElementById('tBuy'), tSell=document.getElementById('tSell
 function setSide(s){ mySide=s; tBuy.classList.toggle('on',s==='buy'); tSell.classList.toggle('on',s==='sell');
   sendBtn.classList.toggle('sell',s==='sell'); sendBtn.textContent='Send '+s+' order'; }
 tBuy.onclick=()=>setSide('buy'); tSell.onclick=()=>setSide('sell');
-sendBtn.onclick=()=>{
-  const px=Math.round(parseFloat(document.getElementById('inPrice').value)*100);
+sendBtn.onclick=async ()=>{
+  const price=parseFloat(document.getElementById('inPrice').value);
   const sz=parseInt(document.getElementById('inSize').value,10);
-  if(!(px>0)||!(sz>0)){ hint.textContent='Enter a positive price and size.'; return; }
-  const s=mySide==='buy'?'B':'S'; let got=0; prevLast=last;
-  const res=book.cross(s,sz,px,false,(fpx,fsh,aggr)=>{ onFill(fpx,fsh,aggr); got+=fsh; });
-  if(res.residual>0) book.add(book.nextRef++, s, res.residual, px);
-  hint.textContent = got>0 ? `Filled ${got.toLocaleString()} @ up to $${(last/100).toFixed(2)}`+(res.residual>0?`, ${res.residual} rested.`:'.')
-    : `No cross — ${sz.toLocaleString()} rested at $${(px/100).toFixed(2)}.`;
-  renderAll();
+  if(!(price>0)||!(sz>0)){ hint.textContent='Enter a positive price and size.'; return; }
+  const s=mySide==='buy'?'B':'S';
+  if(MODE==='connected'){
+    try{
+      const j=await postOrder(s, price, sz);
+      hint.textContent = j.filled>0
+        ? `Filled ${j.filled.toLocaleString()} @ up to $${(j.last/100).toFixed(2)}`+(j.residual>0?`, ${j.residual.toLocaleString()} rested.`:'.')
+        : `No cross — ${sz.toLocaleString()} rested at $${price.toFixed(2)}.`;
+      paint(await fetchState());
+    }catch(e){ hint.textContent='Order failed — engine unreachable.'; }
+  } else {
+    const px=Math.round(price*100); let got=0; prevLast=last;
+    const res=book.cross(s,sz,px,false,(fpx,fsh,aggr)=>{ onFill(fpx,fsh,aggr); got+=fsh; });
+    if(res.residual>0) book.add(book.nextRef++, s, res.residual, px);
+    hint.textContent = got>0 ? `Filled ${got.toLocaleString()} @ up to $${(last/100).toFixed(2)}`+(res.residual>0?`, ${res.residual.toLocaleString()} rested.`:'.')
+      : `No cross — ${sz.toLocaleString()} rested at $${price.toFixed(2)}.`;
+    paint(simState());
+  }
 };
 
-/* ---- rendering ---- */
+/* ---- data-driven rendering (shared by simulated + connected modes) ----
+   A "state" is { asks, bids, bestBid, bestAsk, last, open, trades, stats } where
+   asks/bids are [priceCents, shares, orders] best-first and trades are
+   {t, px, shares, side} newest-first. Both data sources produce this shape. */
 const asksEl=document.getElementById('asks'), bidsEl=document.getElementById('bids'), tapeEl=document.getElementById('tape');
-const LADDER=8;
-function topLevels(s){ return [...book.side(s).values()].sort((a,b)=> s==='S'? a.px-b.px : b.px-a.px).slice(0,LADDER); }
-function maxSh(a,b){ let mx=1; for(const l of a) mx=Math.max(mx,l.shares); for(const l of b) mx=Math.max(mx,l.shares); return mx; }
-function fmt(px){ return (px/100).toFixed(2); }
-
-function renderLadder(){
-  const asks=topLevels('S'), bids=topLevels('B'); const mx=maxSh(asks,bids);
-  asksEl.innerHTML = asks.slice().reverse().map(l=>row('ask',l,mx)).join('');
-  bidsEl.innerHTML = bids.map(l=>row('bid',l,mx)).join('');
-  const bb=book.best('B'), ba=book.best('S');
-  const sp = (bb&&ba)? '$'+((ba-bb)/100).toFixed(2) : '—';
-  document.getElementById('midSpread').textContent = sp;
-  document.getElementById('heroBid').textContent = bb?'$'+fmt(bb):'—';
-  document.getElementById('heroAsk').textContent = ba?'$'+fmt(ba):'—';
-  document.getElementById('heroSpread').textContent = sp;
-  const hp=document.getElementById('heroPrice'); hp.textContent='$'+fmt(last);
-  hp.className='price mono '+(last>prevLast?'up':last<prevLast?'dn':'');
-  const chgPct=((last-open)/open*100), ce=document.getElementById('heroChange');
-  ce.textContent=(chgPct>=0?'+':'')+chgPct.toFixed(2)+'%'; ce.className='chg mono '+(chgPct>=0?'up':'dn');
-  flashRefs.clear();
-}
-function row(cls,l,mx){ const w=(l.shares/mx*100).toFixed(1); const hit=flashRefs.has(l.px)?' hit':'';
-  return `<div class="lvl ${cls}${hit}"><span class="ct">${l.orders.length}</span>`+
-    `<span class="sz">${l.shares.toLocaleString()}</span><span class="px">${fmt(l.px)}</span>`+
+function maxSh(a,b){ let mx=1; for(const l of a) mx=Math.max(mx,l[1]); for(const l of b) mx=Math.max(mx,l[1]); return mx; }
+function fmt(c){ return (c/100).toFixed(2); }
+function lvlRow(cls,l,mx){ const w=(l[1]/mx*100).toFixed(1); const hit=flashPx.has(l[0])?' hit':'';
+  return `<div class="lvl ${cls}${hit}"><span class="ct">${l[2]}</span>`+
+    `<span class="sz">${l[1].toLocaleString()}</span><span class="px">${fmt(l[0])}</span>`+
     `<span class="bar" style="width:${w}%"></span></div>`; }
 
 function addTape(px,shares,aggr){ tapeRows.unshift({px,shares,aggr,t:Date.now()}); if(tapeRows.length>60) tapeRows.pop(); }
-function renderTape(){
-  tapeEl.innerHTML = tapeRows.slice(0,26).map((r,i)=>{ const d=new Date(r.t),
+
+function paint(st){
+  // Flash any price that traded since the previous paint; mark those tape rows "new".
+  flashPx.clear();
+  for(const tr of st.trades){ if(tr.t>lastTradeTs) flashPx.add(tr.px); }
+  const newTs=lastTradeTs; lastTradeTs = st.trades.length ? st.trades[0].t : lastTradeTs;
+
+  const mx=maxSh(st.asks, st.bids);
+  asksEl.innerHTML = st.asks.slice().reverse().map(l=>lvlRow('ask',l,mx)).join('');
+  bidsEl.innerHTML = st.bids.map(l=>lvlRow('bid',l,mx)).join('');
+
+  const bb=st.bestBid, ba=st.bestAsk;
+  const sp=(bb!=null&&ba!=null)?'$'+((ba-bb)/100).toFixed(2):'—';
+  document.getElementById('midSpread').textContent=sp;
+  document.getElementById('heroBid').textContent=bb!=null?'$'+fmt(bb):'—';
+  document.getElementById('heroAsk').textContent=ba!=null?'$'+fmt(ba):'—';
+  document.getElementById('heroSpread').textContent=sp;
+  const hp=document.getElementById('heroPrice'); hp.textContent='$'+fmt(st.last);
+  hp.className='price mono '+(st.last>prevLast?'up':st.last<prevLast?'dn':'');
+  const chg=((st.last-st.open)/st.open*100), ce=document.getElementById('heroChange');
+  ce.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'%'; ce.className='chg mono '+(chg>=0?'up':'dn');
+  prevLast=st.last;
+
+  tapeEl.innerHTML = st.trades.slice(0,26).map(r=>{ const d=new Date(r.t),
     t=`${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-    return `<div class="print ${r.aggr==='B'?'buy':'sell'}${i===0?' new':''}"><span class="t">${t}</span>`+
+    const isNew = r.t>newTs ? ' new' : '';
+    return `<div class="print ${r.side==='B'?'buy':'sell'}${isNew}"><span class="t">${t}</span>`+
       `<span class="p">${fmt(r.px)}</span><span class="q">${r.shares.toLocaleString()}</span></div>`; }).join('');
-  document.getElementById('tapeAux').textContent = tradeCount.toLocaleString()+' prints';
+  document.getElementById('tapeAux').textContent=st.stats.trades.toLocaleString()+' prints';
+
+  prices.push(st.last); if(prices.length>260) prices.shift(); renderChart();
+  document.getElementById('sOps').textContent=st.stats.orders.toLocaleString();
+  document.getElementById('sMatch').textContent=st.stats.trades.toLocaleString();
+  document.getElementById('sRest').textContent=st.stats.resting.toLocaleString();
+  const v=st.stats.volume; document.getElementById('sVol').textContent=v>1e6?(v/1e6).toFixed(1)+'M':v.toLocaleString();
 }
 
 /* ---- chart: smooth line + gradient area + baseline grid ---- */
@@ -438,22 +474,55 @@ function microBench(){
   document.getElementById('sBench').innerHTML=(opsSec/1e6).toFixed(1)+'<small> M/s</small>';
 }
 
-/* ---- loops ---- */
-function renderAll(){ prices.push(last); if(prices.length>260) prices.shift(); renderLadder(); renderTape(); renderChart(); }
-setInterval(()=>{ document.getElementById('sOps').textContent=evtCount.toLocaleString();
-  document.getElementById('sMatch').textContent=tradeCount.toLocaleString();
-  document.getElementById('sRest').textContent=book.restingCount().toLocaleString();
-  document.getElementById('sVol').textContent=volume>1e6?(volume/1e6).toFixed(1)+'M':volume.toLocaleString(); },400);
+/* ---- data sources ---- */
+function simState(){
+  const asks=[...book.side('S').values()].map(l=>[l.px,l.shares,l.orders.length]).sort((a,b)=>a[0]-b[0]).slice(0,8);
+  const bids=[...book.side('B').values()].map(l=>[l.px,l.shares,l.orders.length]).sort((a,b)=>b[0]-a[0]).slice(0,8);
+  return { asks, bids, bestBid:book.best('B'), bestAsk:book.best('S'), last, open,
+    trades: tapeRows.map(r=>({t:r.t,px:r.px,shares:r.shares,side:r.aggr})),
+    stats:{orders:evtCount,trades:tradeCount,resting:book.restingCount(),volume} }; }
+async function fetchState(){
+  const r=await fetch(API+'/api/state',{cache:'no-store'}); const j=await r.json();
+  return { asks:j.asks, bids:j.bids, bestBid:j.bestBid, bestAsk:j.bestAsk, last:j.last, open:j.open,
+    trades:j.trades.map(t=>({t:t[0],px:t[1],shares:t[2],side:t[3]===0?'B':'S'})), stats:j.stats }; }
+async function postOrder(side, price, size){
+  const r=await fetch(API+'/api/order',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({side, price, size})}); return r.json(); }
+async function postPace(ms){ try{ await fetch(API+'/api/pace',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ms})}); }catch(e){} }
 
-let paceMs=240, simTimer=null;
-function simTick(){ prevLast=last; step(); renderAll(); }
-function schedule(){ if(paceMs>0) simTimer=setTimeout(()=>{ simTick(); schedule(); }, paceMs); }
+/* ---- loops + mode wiring ---- */
+let paceMs=240, simTimer=null, connTimer=null;
+function simTick(){ prevLast=last; step(); paint(simState()); }
+function scheduleSim(){ if(MODE==='sim' && paceMs>0) simTimer=setTimeout(()=>{ simTick(); scheduleSim(); }, paceMs); }
 function setPace(ms){ paceMs=ms; clearTimeout(simTimer);
   document.querySelectorAll('#pace button').forEach(b=>b.classList.toggle('on', +b.dataset.ms===ms));
-  const live=document.getElementById('live'); live.classList.toggle('paused', ms===0);
+  document.getElementById('live').classList.toggle('paused', ms===0);
   document.getElementById('liveState').textContent = ms===0?'Paused':'Live';
-  if(ms>0) schedule(); }
+  if(MODE==='connected') postPace(ms); else scheduleSim(); }
 document.querySelectorAll('#pace button').forEach(b=> b.onclick=()=>setPace(+b.dataset.ms));
+
+function startConnected(){
+  MODE='connected';
+  const badge=document.getElementById('srcBadge'); badge.textContent='Java engine'; badge.classList.add('java');
+  document.getElementById('footNote').textContent='Live — Buy/Sell and the book are driven by the real Java engine (DemoServer).';
+  const poll=async ()=>{ try{ paint(await fetchState()); }catch(e){} };
+  poll(); connTimer=setInterval(poll, 260);
+}
+function startSim(){
+  MODE='sim';
+  document.getElementById('srcBadge').textContent='Simulated';
+  document.getElementById('footNote').textContent='Live demo — a JS port of the Helix matching engine, matching in your browser.';
+  seedBook(); paint(simState()); scheduleSim();
+}
+async function init(){
+  let connected=false;
+  if(location.protocol!=='file:'){
+    try{ const r=await fetch(API+'/api/state',{cache:'no-store'});
+      if(r.ok){ const j=await r.json(); if(j && Array.isArray(j.asks)) connected=true; } }catch(e){}
+  }
+  if(connected) startConnected(); else startSim();
+}
 
 /* ---- theme toggle (light default, persisted) ---- */
 const themeBtn=document.getElementById('theme');
@@ -465,7 +534,7 @@ themeBtn.onclick=()=>{ const next = document.documentElement.getAttribute('data-
 let saved='light'; try{ saved=localStorage.getItem('helix-theme')||'light'; }catch(e){}
 applyTheme(saved);
 
-setSide('buy'); microBench(); renderAll(); schedule();
+setSide('buy'); microBench(); init();
 </script>
 </body>
 </html>
