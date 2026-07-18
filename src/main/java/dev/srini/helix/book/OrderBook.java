@@ -142,6 +142,21 @@ public final class OrderBook {
         return ordersByRef.size();
     }
 
+    /**
+     * Snapshot the best {@code depth} price levels on a side as {@code [priceE4,
+     * totalShares, orderCount]}, best price first. Allocates; intended for
+     * out-of-band queries (e.g. a UI), not the hot path.
+     */
+    public java.util.List<int[]> topLevels(byte side, int depth) {
+        final java.util.List<int[]> out = new java.util.ArrayList<>();
+        for (final PriceLevel lv : levels(side).values()) {
+            out.add(new int[]{lv.priceE4, lv.totalShares, lv.orderCount});
+        }
+        final boolean bid = side == BUY;
+        out.sort((a, b) -> bid ? Integer.compare(b[0], a[0]) : Integer.compare(a[0], b[0]));
+        return out.size() > depth ? new java.util.ArrayList<>(out.subList(0, depth)) : out;
+    }
+
     /** First order in time priority at a price, or 0 if the level is empty. */
     public long frontOrderAt(byte side, int priceE4) {
         final PriceLevel level = levels(side).get(priceE4);

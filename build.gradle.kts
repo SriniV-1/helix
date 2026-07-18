@@ -35,3 +35,12 @@ application {
 tasks.test {
     useJUnitPlatform()
 }
+
+// Run the local demo server: the real Java engine behind an HTTP/JSON API, with
+// the demo page served from it so Buy/Sell drives the actual MatchingEngine.
+tasks.register<JavaExec>("demoServer") {
+    group = "application"
+    description = "Run the Helix demo server on http://localhost:8080"
+    mainClass = "dev.srini.helix.engine.DemoServer"
+    classpath = sourceSets["main"].runtimeClasspath
+}
