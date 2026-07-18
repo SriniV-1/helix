@@ -90,9 +90,40 @@ book/    OrderBook, PriceLevel, Order, Pool, BookManager, MatchingEngine
          PriceLadder                     — evaluated array-backed level store
 io/      ItchFileReader, ItchWriter, SyntheticCapture
 engine/  Replay, ShardedReplay,          — single- and multi-threaded drivers
-         AllocationProfile               — JFR / exact allocation check
-docs/    index.html                      — live in-browser demo (GitHub Pages)
+         AllocationProfile,              — JFR / exact allocation check
+         DemoServer                      — HTTP/JSON API + serves the demo page
+docs/    index.html                      — demo UI (connected to engine, or JS fallback)
 ```
+
+## Live demo — connected to the real engine
+
+The demo page has two modes. On GitHub Pages (static hosting) it runs a faithful
+JS port of the matching engine in the browser. When it can reach the Java
+**`DemoServer`**, the order book, the live flow, and the Buy/Sell panel are driven
+by the real `OrderBook` + `MatchingEngine` in the JVM — the page auto-detects
+which and shows a "Java engine" / "Simulated" badge.
+
+Run it connected, locally:
+
+```bash
+./gradlew demoServer          # http://localhost:8080 — Buy/Sell hits the real engine
+```
+
+Deploy it connected (frontend and engine are hosted separately):
+
+- **Frontend → Vercel.** `vercel.json` serves `docs/` as a static site. Set the
+  engine URL by editing `window.HELIX_API` in `docs/index.html` (or append
+  `?api=https://your-engine.example.com` to the URL).
+- **Engine → a container host** (Fly.io / Render / Railway / Cloud Run — Vercel
+  can't host it because it's a long-running, stateful process). Build the
+  included `Dockerfile`; the server listens on `$PORT` and has CORS enabled.
+
+```bash
+docker build -t helix . && docker run -p 8080:8080 helix
+```
+
+If no engine is reachable, the page falls back to the in-browser simulation, so
+the public deploy always works.
 
 ## Engineering notes
 

@@ -1,0 +1,6 @@
+.git
+.gradle
+build
+captures
+node_modules
+*.jfr
