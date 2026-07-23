@@ -207,16 +207,23 @@ public final class DemoServer {
         }
         final int residual;
         final int filled;
+        final long notionalCents;
         synchronized (lock) {
             final long ref = nextRef++;
-            residual = engine.submitLimit(ref, s, size, priceE4, onFill);
+            final long[] acc = new long[1];   // total shares*priceE4 across the fills
+            final MatchingEngine.FillHandler h = (aggr, resting, side2, shares, px) -> {
+                onFill.onFill(aggr, resting, side2, shares, px);
+                acc[0] += (long) shares * px;
+            };
+            residual = engine.submitLimit(ref, s, size, priceE4, h);
             if (residual > 0) {
                 track(ref);
             }
             filled = size - residual;
+            notionalCents = acc[0] / 100;     // priceE4 is hundredths of a cent
         }
         sendJson(ex, 200, "{\"filled\":" + filled + ",\"residual\":" + residual
-                + ",\"last\":" + cents(lastE4) + "}");
+                + ",\"last\":" + cents(lastE4) + ",\"notional\":" + notionalCents + "}");
     }
 
     private void handlePace(HttpExchange ex) throws IOException {
