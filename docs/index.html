@@ -3,184 +3,221 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Helix — Live Matching Engine</title>
+<title>Helix — Learn How a Stock Market Works</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg:#f3f5f9; --panel:#ffffff; --panel2:#fbfcfe; --panelEdge:#f4f6fa;
+    --bg:#eef1f7; --panel:#ffffff; --panel2:#fbfcfe; --panelEdge:#f5f7fb;
     --line:#e4e8f0; --line2:#d3dae6;
-    --ink:#121a28; --muted:#5b6779; --faint:#95a0b0;
-    --bid:#0ca678; --bid-soft:rgba(12,166,120,.10);
-    --ask:#e5484d; --ask-soft:rgba(229,72,77,.08);
-    --accent:#7c5cff; --accent2:#6d4aff;
-    --inputbg:#f6f8fc; --engbg:#f6f8fc; --grid:rgba(18,26,40,.06); --flash:rgba(124,92,255,.14);
-    --shadow:0 1px 2px rgba(18,26,40,.04), 0 6px 24px rgba(18,26,40,.05);
+    --ink:#141c2b; --muted:#5b6779; --faint:#8b97a8;
+    --buy:#0ca678; --buy-soft:rgba(12,166,120,.12); --buy-bar:rgba(12,166,120,.16);
+    --sell:#e5484d; --sell-soft:rgba(229,72,77,.10); --sell-bar:rgba(229,72,77,.13);
+    --accent:#6d4aff; --accent2:#5b34ff; --accent-soft:rgba(109,74,255,.10);
+    --inputbg:#f5f7fc; --engbg:#f6f8fc; --grid:rgba(20,28,43,.06); --flash:rgba(109,74,255,.20);
+    --shadow:0 1px 2px rgba(20,28,43,.04), 0 8px 30px rgba(20,28,43,.06);
     --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
     --disp:'Space Grotesk',system-ui,sans-serif;
-    --r:14px;
+    --r:16px;
   }
   [data-theme="dark"] {
-    --bg:#080b12; --panel:#0d1220; --panel2:#101728; --panelEdge:#0a0e19;
-    --line:#1b2436; --line2:#232f45;
-    --ink:#eef2f9; --muted:#8595b0; --faint:#485674;
-    --bid:#34d399; --bid-soft:rgba(52,211,153,.12);
-    --ask:#fb7185; --ask-soft:rgba(251,113,133,.12);
-    --accent:#8b5cf6; --accent2:#a78bfa;
-    --inputbg:#080c15; --engbg:#0a0f1b; --grid:rgba(133,149,176,.14); --flash:rgba(139,92,246,.16);
+    --bg:#080b12; --panel:#0e1421; --panel2:#111828; --panelEdge:#0b1019;
+    --line:#1e2839; --line2:#28344a;
+    --ink:#eef2f9; --muted:#94a2ba; --faint:#5b6b85;
+    --buy:#34d399; --buy-soft:rgba(52,211,153,.14); --buy-bar:rgba(52,211,153,.18);
+    --sell:#fb7185; --sell-soft:rgba(251,113,133,.14); --sell-bar:rgba(251,113,133,.18);
+    --accent:#8b5cf6; --accent2:#a78bfa; --accent-soft:rgba(139,92,246,.16);
+    --inputbg:#0a0f1a; --engbg:#0a0f1b; --grid:rgba(148,162,186,.14); --flash:rgba(139,92,246,.22);
     --shadow:none;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { height:100%; }
   body {
     background:
-      radial-gradient(1100px 620px at 82% -8%, rgba(124,92,255,.07), transparent 62%),
-      radial-gradient(820px 520px at -5% 108%, rgba(12,166,120,.05), transparent 58%),
+      radial-gradient(1100px 620px at 84% -10%, var(--accent-soft), transparent 60%),
+      radial-gradient(820px 520px at -6% 108%, var(--buy-soft), transparent 55%),
       var(--bg);
     color:var(--ink); font-family:var(--disp); -webkit-font-smoothing:antialiased;
-    line-height:1.45; padding:clamp(16px,2.6vw,40px); min-height:100%;
+    line-height:1.5; padding:clamp(14px,2.4vw,36px); min-height:100%;
   }
-  [data-theme="dark"] body {
-    background:
-      radial-gradient(1100px 620px at 82% -8%, rgba(139,92,246,.10), transparent 62%),
-      radial-gradient(820px 520px at -5% 108%, rgba(52,211,153,.06), transparent 58%),
-      var(--bg);
-  }
-  .app { max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+  .app { max-width:1200px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
   .mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .buyC { color:var(--buy); } .sellC { color:var(--sell); }
 
-  /* ---------- spine ---------- */
-  .spine { display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
-  .brand { display:flex; align-items:baseline; gap:13px; }
-  .brand .name { font-weight:700; font-size:clamp(21px,2.5vw,27px); letter-spacing:.4em; padding-left:.4em;
-                 text-transform:uppercase; }
-  .brand .name b { color:var(--accent2); font-weight:700; }
-  .brand .sub { font-family:var(--mono); font-size:10.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); }
-  .spine-r { display:flex; align-items:center; gap:16px; }
-  .live { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:10.5px;
-          letter-spacing:.2em; text-transform:uppercase; color:var(--bid); }
-  .dot { width:7px; height:7px; border-radius:50%; background:var(--bid);
-         box-shadow:0 0 0 0 rgba(52,211,153,.5); animation:pulse 1.7s infinite; }
-  .live.paused { color:var(--muted); } .live.paused .dot { background:var(--muted); animation:none; }
-  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)} 70%{box-shadow:0 0 0 8px rgba(52,211,153,0)} 100%{box-shadow:0 0 0 0 transparent} }
-  .pace { display:flex; gap:0; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
-  .pace button { font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
-                 color:var(--muted); background:transparent; border:0; border-right:1px solid var(--line);
-                 padding:6px 11px; cursor:pointer; transition:.15s; }
+  /* ---------- header ---------- */
+  .spine { display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+  .brand { display:flex; align-items:baseline; gap:14px; }
+  .brand .name { font-weight:700; font-size:clamp(20px,2.4vw,26px); letter-spacing:.38em; padding-left:.38em; text-transform:uppercase; }
+  .brand .name b { color:var(--accent2); }
+  .brand .sub { font-size:12.5px; color:var(--muted); font-weight:500; }
+  @media (max-width:680px){ .brand .sub{ display:none; } }
+  .spine-r { display:flex; align-items:center; gap:12px; }
+  .live { display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--buy); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--buy); box-shadow:0 0 0 0 currentColor; animation:pulse 1.7s infinite; }
+  .live.paused { color:var(--muted); } .live.paused .dot { animation:none; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 var(--buy-soft)} 70%{box-shadow:0 0 0 8px transparent} 100%{box-shadow:0 0 0 0 transparent} }
+  .pace { display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--panel); }
+  .pace button { font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+                 background:transparent; border:0; border-right:1px solid var(--line); padding:7px 11px; cursor:pointer; transition:.15s; }
   .pace button:last-child { border-right:0; }
-  .pace button:hover { color:var(--ink); background:rgba(255,255,255,.03); }
-  .pace button.on { color:var(--accent2); background:var(--flash); }
-  .theme { display:flex; align-items:center; justify-content:center; width:32px; height:32px; cursor:pointer;
-           background:transparent; border:1px solid var(--line); border-radius:9px; color:var(--muted);
-           font-size:14px; transition:.15s; }
-  .theme:hover { color:var(--ink); border-color:var(--line2); }
-  .src { font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase;
-         color:var(--muted); border:1px solid var(--line); border-radius:7px; padding:5px 9px; }
-  .src.java { color:var(--bid); border-color:color-mix(in srgb, var(--bid) 40%, transparent); }
+  .pace button:hover { color:var(--ink); }
+  .pace button.on { color:#fff; background:var(--accent); }
+  .theme { width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer;
+           background:var(--panel); border:1px solid var(--line); border-radius:10px; color:var(--muted); font-size:14px; }
+  .theme:hover { color:var(--ink); }
+  .src { font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+         border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--panel); white-space:nowrap; }
+  .src.java { color:var(--buy); border-color:color-mix(in srgb, var(--buy) 45%, transparent); }
+  @media (max-width:680px){ .src{ display:none; } }
 
-  /* ---------- hero ---------- */
-  .hero { display:grid; grid-template-columns:auto 1px 1fr 1fr 1fr; align-items:center; gap:26px;
-          background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line);
-          border-radius:var(--r); padding:20px 26px; box-shadow:var(--shadow); }
-  .hero .vr { width:1px; align-self:stretch; background:var(--line); }
-  .price-block { display:flex; flex-direction:column; gap:3px; }
-  .price-block .lab { font-family:var(--mono); font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); }
-  .price-row { display:flex; align-items:baseline; gap:12px; }
-  .price { font-family:var(--mono); font-weight:700; font-size:clamp(30px,4.6vw,46px); letter-spacing:-.01em;
-           transition:color .2s; }
-  .price.up { color:var(--bid); } .price.dn { color:var(--ask); }
-  .chg { font-family:var(--mono); font-size:14px; font-weight:600; padding:3px 9px; border-radius:7px; }
-  .chg.up { color:var(--bid); background:var(--bid-soft); } .chg.dn { color:var(--ask); background:var(--ask-soft); }
-  .metric { display:flex; flex-direction:column; gap:4px; }
-  .metric .lab { font-family:var(--mono); font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint); }
-  .metric .val { font-family:var(--mono); font-size:20px; font-weight:600; }
-  .metric .val.bid { color:var(--bid); } .metric .val.ask { color:var(--ask); }
-
-  /* ---------- board ---------- */
-  .board { display:grid; grid-template-columns:1.35fr 1fr; gap:14px; }
-  .lower { display:grid; grid-template-columns:1.6fr 1fr; gap:14px; }
-  @media (max-width:820px){ .hero{ grid-template-columns:1fr 1fr; row-gap:18px; } .hero .vr{ display:none; }
-    .board,.lower{ grid-template-columns:1fr; } }
-
+  /* ---------- panels ---------- */
   .panel { background:linear-gradient(180deg,var(--panel),var(--panelEdge)); border:1px solid var(--line);
            border-radius:var(--r); display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow); }
-  .phead { display:flex; align-items:center; justify-content:space-between; padding:13px 17px;
-           border-bottom:1px solid var(--line); }
-  .phead h2 { font-family:var(--mono); font-size:10.5px; letter-spacing:.2em; text-transform:uppercase;
-              color:var(--muted); font-weight:600; }
-  .phead .aux { font-family:var(--mono); font-size:10px; letter-spacing:.06em; color:var(--faint); }
+  .phead { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px 12px; border-bottom:1px solid var(--line); }
+  .phead .title { display:flex; flex-direction:column; gap:2px; }
+  .phead h2 { font-size:14px; font-weight:600; letter-spacing:-.01em; }
+  .phead .desc { font-size:11.5px; color:var(--muted); font-weight:400; }
+  .phead .aux { font-family:var(--mono); font-size:10px; color:var(--faint); white-space:nowrap; }
 
-  /* ---------- ladder ---------- */
-  .ladder { padding:8px 0; }
-  .lvl { position:relative; display:grid; grid-template-columns:52px 1fr 96px; align-items:center;
-         font-family:var(--mono); font-size:12.5px; padding:3px 17px; font-variant-numeric:tabular-nums; }
-  .lvl .bar { position:absolute; top:2px; bottom:2px; right:17px; border-radius:3px; }
-  .lvl.ask .bar { background:var(--ask-soft); } .lvl.bid .bar { background:var(--bid-soft); }
-  .lvl .ct { z-index:1; color:var(--faint); font-size:10.5px; }
-  .lvl .sz { z-index:1; color:var(--ink); text-align:left; opacity:.92; }
-  .lvl .px { z-index:1; text-align:right; font-weight:600; }
-  .lvl.ask .px { color:var(--ask); } .lvl.bid .px { color:var(--bid); }
-  .lvl.hit::after { content:''; position:absolute; left:0; top:2px; bottom:2px; width:2px;
-                    background:var(--accent2); box-shadow:0 0 7px var(--accent2); animation:hit .6s ease-out forwards; }
+  /* ---------- intro explainer ---------- */
+  .intro { border:1px solid var(--line); border-radius:var(--r); background:linear-gradient(180deg,var(--panel),var(--panelEdge));
+           box-shadow:var(--shadow); overflow:hidden; }
+  .intro-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; cursor:pointer; }
+  .intro-head h3 { font-size:14.5px; font-weight:600; display:flex; align-items:center; gap:9px; }
+  .intro-head .chev { color:var(--muted); font-size:12px; transition:transform .2s; }
+  .intro.closed .chev { transform:rotate(-90deg); }
+  .intro-body { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; padding:2px 18px 18px; }
+  .intro.closed .intro-body { display:none; }
+  @media (max-width:760px){ .intro-body{ grid-template-columns:1fr; } }
+  .icard { display:flex; flex-direction:column; gap:6px; padding:15px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+  .icard .n { width:24px; height:24px; border-radius:7px; display:flex; align-items:center; justify-content:center;
+              font-family:var(--mono); font-size:12px; font-weight:700; color:#fff; background:var(--accent); }
+  .icard h4 { font-size:13.5px; font-weight:600; }
+  .icard p { font-size:12.5px; color:var(--muted); line-height:1.5; }
+  .icard p b.buyC { font-weight:600; } .icard p b.sellC { font-weight:600; }
+
+  /* ---------- hero ---------- */
+  .hero { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; align-items:stretch; gap:0;
+          background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line);
+          border-radius:var(--r); box-shadow:var(--shadow); overflow:hidden; }
+  @media (max-width:760px){ .hero{ grid-template-columns:1fr 1fr; } }
+  .hcell { padding:18px 22px; border-left:1px solid var(--line); display:flex; flex-direction:column; gap:5px; justify-content:center; }
+  .hcell:first-child { border-left:0; }
+  .hcell .lab { font-size:11px; letter-spacing:.02em; text-transform:uppercase; color:var(--faint); font-weight:600; }
+  .hcell .sub { font-size:11px; color:var(--muted); line-height:1.35; }
+  .price-row { display:flex; align-items:baseline; gap:11px; }
+  .price { font-family:var(--mono); font-weight:700; font-size:clamp(30px,4.4vw,44px); letter-spacing:-.02em; transition:color .2s; }
+  .price.up { color:var(--buy); } .price.dn { color:var(--sell); }
+  .chg { font-family:var(--mono); font-size:13px; font-weight:600; padding:3px 8px; border-radius:7px; }
+  .chg.up { color:var(--buy); background:var(--buy-soft); } .chg.dn { color:var(--sell); background:var(--sell-soft); }
+  .hcell .val { font-family:var(--mono); font-size:22px; font-weight:600; }
+  .hcell .val.buyC { color:var(--buy); } .hcell .val.sellC { color:var(--sell); }
+
+  /* ---------- board ---------- */
+  .board { display:grid; grid-template-columns:1.25fr 1fr; gap:16px; align-items:start; }
+  @media (max-width:860px){ .board{ grid-template-columns:1fr; } }
+
+  /* order book */
+  .sideband { display:flex; align-items:center; gap:8px; padding:9px 18px; font-size:11.5px; font-weight:600; }
+  .sideband .tag { font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; padding:2px 7px; border-radius:6px; }
+  .sideband .note { font-weight:400; color:var(--muted); font-size:11px; }
+  .sideband.sell { background:var(--sell-soft); color:var(--sell); } .sideband.sell .tag { background:var(--sell); color:#fff; }
+  .sideband.buy { background:var(--buy-soft); color:var(--buy); } .sideband.buy .tag { background:var(--buy); color:#fff; }
+  .colhead { display:grid; grid-template-columns:64px 1fr 88px; padding:7px 18px; font-size:10px; letter-spacing:.04em;
+             text-transform:uppercase; color:var(--faint); font-weight:600; border-bottom:1px solid var(--line); }
+  .colhead span:last-child { text-align:right; }
+  .colhead span:nth-child(2) { }
+  .ladder { padding:4px 0; }
+  .lvl { position:relative; display:grid; grid-template-columns:64px 1fr 88px; align-items:center;
+         font-family:var(--mono); font-size:13px; padding:3.5px 18px; font-variant-numeric:tabular-nums; }
+  .lvl .bar { position:absolute; top:2px; bottom:2px; right:18px; border-radius:4px; }
+  .lvl.ask .bar { background:var(--sell-bar); } .lvl.bid .bar { background:var(--buy-bar); }
+  .lvl .ct { z-index:1; color:var(--faint); font-size:11px; }
+  .lvl .sz { z-index:1; color:var(--ink); opacity:.9; }
+  .lvl .px { z-index:1; text-align:right; font-weight:700; }
+  .lvl.ask .px { color:var(--sell); } .lvl.bid .px { color:var(--buy); }
+  .lvl.best .px::after { content:'●'; font-size:7px; vertical-align:middle; margin-left:6px; opacity:.7; }
+  .lvl.hit::before { content:''; position:absolute; left:0; top:1px; bottom:1px; width:3px; border-radius:3px;
+                     background:var(--accent2); box-shadow:0 0 8px var(--accent2); animation:hit .7s ease-out forwards; }
   @keyframes hit { to{ opacity:0 } }
-  .midbar { display:flex; align-items:center; justify-content:center; gap:10px; padding:8px 17px; margin:5px 0;
-            background:rgba(139,92,246,.05); border-top:1px solid var(--line); border-bottom:1px solid var(--line);
-            font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
-  .midbar b { color:var(--accent2); font-weight:600; }
+  .spreadbar { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:12px; padding:11px 18px; margin:4px 0;
+               background:var(--accent-soft); border-top:1px dashed var(--line2); border-bottom:1px dashed var(--line2); }
+  .spreadbar .ln { height:1px; background:var(--line2); }
+  .spreadbar .mid { text-align:center; }
+  .spreadbar .mid .v { font-family:var(--mono); font-weight:700; font-size:14px; color:var(--accent2); }
+  .spreadbar .mid .k { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:600; }
 
-  /* ---------- tape ---------- */
-  .tape { flex:1; overflow:hidden; }
-  .print { display:grid; grid-template-columns:52px 1fr auto; gap:10px; align-items:center; font-family:var(--mono);
-           font-size:12.5px; padding:6px 17px; border-bottom:1px solid rgba(27,36,54,.55); font-variant-numeric:tabular-nums; }
-  .print.new { animation:flash .7s ease-out; }
-  @keyframes flash { 0%{background:var(--flash)} 100%{background:transparent} }
-  .print .t { color:var(--faint); font-size:10.5px; }
-  .print .p { font-weight:600; } .print.buy .p { color:var(--bid); } .print.sell .p { color:var(--ask); }
-  .print .p::before { content:'↑'; margin-right:5px; opacity:.7; } .print.sell .p::before { content:'↓'; }
-  .print .q { text-align:right; color:var(--ink); opacity:.9; }
+  /* live activity narration */
+  .feed { max-height:462px; overflow:hidden; padding:6px 0; }
+  .act { display:flex; align-items:flex-start; gap:10px; padding:9px 18px; border-bottom:1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  .act.new { animation:slidein .5s ease-out; }
+  @keyframes slidein { from{ background:var(--flash); } to{ background:transparent; } }
+  .act .ico { flex:none; width:22px; height:22px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:11px; margin-top:1px; }
+  .act.buy .ico { background:var(--buy-soft); color:var(--buy); } .act.sell .ico { background:var(--sell-soft); color:var(--sell); }
+  .act .txt { font-size:12.5px; line-height:1.4; }
+  .act .txt b { font-weight:600; } .act.buy .txt b { color:var(--buy); } .act.sell .txt b { color:var(--sell); }
+  .act .txt .amt { font-family:var(--mono); }
+  .act .tm { margin-left:auto; font-family:var(--mono); font-size:10px; color:var(--faint); flex:none; padding-left:8px; }
 
-  /* ---------- chart ---------- */
-  .chartbody { padding:8px 6px 4px; flex:1; }
-  canvas { display:block; width:100%; height:164px; }
+  /* ---------- lower ---------- */
+  .lower { display:grid; grid-template-columns:1.35fr 1fr; gap:16px; align-items:start; }
+  @media (max-width:860px){ .lower{ grid-template-columns:1fr; } }
+  .chartbody { padding:10px 8px 6px; }
+  canvas { display:block; width:100%; height:168px; }
+  .chart-cap { padding:0 18px 14px; font-size:11.5px; color:var(--muted); }
 
-  /* ---------- order entry ---------- */
-  .order { padding:16px 17px; display:flex; flex-direction:column; gap:12px; }
-  .toggle { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
-  .toggle button { font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:600;
-                   background:transparent; color:var(--muted); border:0; padding:10px; cursor:pointer; transition:.15s; }
-  .toggle button.on[data-side="buy"] { background:var(--bid-soft); color:var(--bid); }
-  .toggle button.on[data-side="sell"] { background:var(--ask-soft); color:var(--ask); }
-  .frow { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .field { display:flex; flex-direction:column; gap:6px; }
-  .field label { font-family:var(--mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); }
-  .field input { font-family:var(--mono); font-size:14px; background:var(--inputbg); color:var(--ink); font-variant-numeric:tabular-nums;
-                 border:1px solid var(--line); border-radius:8px; padding:10px 12px; width:100%; }
-  .field input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(139,92,246,.15); }
-  .send { font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; font-weight:700;
-          border:0; border-radius:9px; padding:13px; cursor:pointer; color:#08130d; background:var(--bid); transition:.15s; }
-  .send.sell { background:var(--ask); color:#1a0a0e; }
-  .send:hover { filter:brightness(1.08); transform:translateY(-1px); }
-  .hint { font-family:var(--mono); font-size:10.5px; color:var(--faint); min-height:15px; }
+  /* order ticket */
+  .order { padding:16px 18px; display:flex; flex-direction:column; gap:13px; }
+  .toggle { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line); border-radius:11px; overflow:hidden; }
+  .toggle button { font-size:13px; font-weight:600; background:transparent; color:var(--muted); border:0; padding:11px; cursor:pointer; transition:.15s; }
+  .toggle button .s { display:block; font-size:10px; font-weight:400; opacity:.75; margin-top:1px; }
+  .toggle button.on[data-side="buy"] { background:var(--buy-soft); color:var(--buy); }
+  .toggle button.on[data-side="sell"] { background:var(--sell-soft); color:var(--sell); }
+  .frow { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+  .field label { display:block; font-size:11px; color:var(--muted); font-weight:500; margin-bottom:5px; }
+  .field .inwrap { position:relative; }
+  .field .pfx { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--faint); font-family:var(--mono); font-size:14px; }
+  .field input { font-family:var(--mono); font-size:15px; background:var(--inputbg); color:var(--ink); font-variant-numeric:tabular-nums;
+                 border:1px solid var(--line); border-radius:10px; padding:11px 12px; width:100%; }
+  .field input.haspfx { padding-left:24px; }
+  .field input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .field .help { font-size:10.5px; color:var(--faint); margin-top:4px; }
+  .field .help a { color:var(--accent2); cursor:pointer; text-decoration:underline; }
+  .preview { display:flex; gap:9px; align-items:flex-start; font-size:12px; line-height:1.45; color:var(--ink);
+             background:var(--inputbg); border:1px solid var(--line); border-radius:11px; padding:11px 13px; min-height:60px; }
+  .preview .pico { flex:none; font-size:15px; margin-top:1px; }
+  .preview b { font-weight:600; }
+  .send { font-size:13.5px; font-weight:700; border:0; border-radius:11px; padding:14px; cursor:pointer; color:#fff; background:var(--buy); transition:.15s; }
+  .send.sell { background:var(--sell); }
+  .send:hover { filter:brightness(1.06); transform:translateY(-1px); }
+  .result { font-size:12px; color:var(--muted); min-height:16px; text-align:center; }
+  .result b { color:var(--ink); font-weight:600; }
 
-  /* ---------- stat strip ---------- */
-  .strip { display:grid; grid-template-columns:repeat(4,1fr) 1.6fr; gap:1px; background:var(--line);
-           border:1px solid var(--line); border-radius:var(--r); overflow:hidden; }
-  @media (max-width:820px){ .strip{ grid-template-columns:repeat(2,1fr); } }
-  .cell { background:var(--panel); padding:14px 16px; }
-  .cell .k { font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); }
-  .cell .v { font-family:var(--mono); font-size:19px; font-weight:600; margin-top:6px; }
-  .cell .v small { font-size:11px; font-weight:400; color:var(--muted); }
-  .cell.eng { background:var(--engbg); display:grid; align-content:center; }
+  /* ---------- stats ---------- */
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; padding:16px 18px;
+           background:linear-gradient(180deg,var(--panel),var(--panelEdge)); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow); }
+  @media (max-width:680px){ .stats{ grid-template-columns:repeat(2,1fr); } }
+  .stat .k { font-size:11px; color:var(--muted); font-weight:500; }
+  .stat .v { font-family:var(--mono); font-size:22px; font-weight:600; margin-top:4px; }
+
+  .under { border:1px solid var(--line); border-radius:var(--r); background:var(--engbg); overflow:hidden; box-shadow:var(--shadow); }
+  .under-head { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; cursor:pointer; }
+  .under-head .l { font-size:12.5px; font-weight:600; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .under-head .chev { color:var(--faint); font-size:11px; transition:transform .2s; }
+  .under.closed .chev { transform:rotate(-90deg); }
+  .under-body { padding:0 18px 16px; }
+  .under.closed .under-body { display:none; }
+  .under-body p { font-size:11.5px; color:var(--muted); margin-bottom:12px; max-width:70ch; }
   .eng-wrap { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
-  @media (max-width:820px){ .cell.eng{ grid-column:1 / -1; } .eng-wrap{ grid-template-columns:repeat(2,1fr); } }
-  .eng-wrap .e .k { color:var(--accent2); opacity:.85; }
-  .eng-wrap .e .v { font-size:16px; color:var(--ink); }
+  @media (max-width:680px){ .eng-wrap{ grid-template-columns:repeat(2,1fr); } }
+  .e .k { font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--accent2); }
+  .e .v { font-family:var(--mono); font-size:17px; font-weight:600; margin-top:4px; }
+  .e .v small { font-size:11px; font-weight:400; color:var(--muted); }
 
-  .foot { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; padding-top:4px;
-          font-family:var(--mono); font-size:10.5px; color:var(--faint); letter-spacing:.02em; }
-  .foot a { color:var(--accent2); text-decoration:none; }
-  .foot a:hover { text-decoration:underline; }
+  .foot { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:2px 4px;
+          font-size:11.5px; color:var(--muted); }
+  .foot a { color:var(--accent2); text-decoration:none; } .foot a:hover { text-decoration:underline; }
 
   @media (prefers-reduced-motion:reduce){ *{ animation:none!important; transition:none!important; } }
 </style>
@@ -191,10 +228,10 @@
   <header class="spine">
     <div class="brand">
       <span class="name">Heli<b>x</b></span>
-      <span class="sub">Matching Engine · NASDAQ ITCH 5.0</span>
+      <span class="sub">A live stock-market simulator — watch buyers and sellers trade in real time</span>
     </div>
     <div class="spine-r">
-      <span class="src" id="srcBadge" title="Data source">Simulated</span>
+      <span class="src" id="srcBadge" title="Where the data comes from">Simulated</span>
       <div class="pace" id="pace">
         <button data-ms="0">Pause</button>
         <button data-ms="600">Slow</button>
@@ -202,82 +239,163 @@
         <button data-ms="70">Fast</button>
       </div>
       <div class="live" id="live"><span class="dot"></span><span id="liveState">Live</span></div>
-      <button class="theme" id="theme" title="Toggle light / dark" aria-label="Toggle theme">☾</button>
+      <button class="theme" id="theme" title="Light / dark" aria-label="Toggle theme">☾</button>
     </div>
   </header>
 
+  <!-- Intro explainer -->
+  <section class="intro" id="intro">
+    <div class="intro-head" id="introHead">
+      <h3>👋 New to this? Here's what you're looking at</h3>
+      <span class="chev">▼</span>
+    </div>
+    <div class="intro-body">
+      <div class="icard">
+        <span class="n">1</span>
+        <h4>It's a live market for one stock</h4>
+        <p>“HELX” is a pretend company. Its price moves whenever someone buys or sells its shares — exactly like a real stock on NASDAQ.</p>
+      </div>
+      <div class="icard">
+        <span class="n">2</span>
+        <h4>The order book = who's waiting to trade</h4>
+        <p><b class="buyC">Buyers</b> list the most they'll pay. <b class="sellC">Sellers</b> list the least they'll accept. It's two lines of people waiting for a deal.</p>
+      </div>
+      <div class="icard">
+        <span class="n">3</span>
+        <h4>A trade happens when they meet</h4>
+        <p>When a buyer's price reaches a seller's price, shares change hands — that's a <b>trade</b>, and it sets the new price. Try it in the panel below!</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hero price -->
   <section class="hero">
-    <div class="price-block">
-      <span class="lab">HELX · Last</span>
+    <div class="hcell">
+      <span class="lab">HELX · current price</span>
       <div class="price-row">
         <span class="price mono" id="heroPrice">—</span>
         <span class="chg mono" id="heroChange">—</span>
       </div>
+      <span class="sub">What one share last traded for</span>
     </div>
-    <div class="vr"></div>
-    <div class="metric"><span class="lab">Spread</span><span class="val mono" id="heroSpread">—</span></div>
-    <div class="metric"><span class="lab">Best bid</span><span class="val mono bid" id="heroBid">—</span></div>
-    <div class="metric"><span class="lab">Best ask</span><span class="val mono ask" id="heroAsk">—</span></div>
+    <div class="hcell">
+      <span class="lab">Highest buyer</span>
+      <span class="val mono buyC" id="heroBid">—</span>
+      <span class="sub">Most anyone will pay right now (“best bid”)</span>
+    </div>
+    <div class="hcell">
+      <span class="lab">Lowest seller</span>
+      <span class="val mono sellC" id="heroAsk">—</span>
+      <span class="sub">Least anyone will accept (“best ask”)</span>
+    </div>
+    <div class="hcell">
+      <span class="lab">Spread</span>
+      <span class="val mono" id="heroSpread">—</span>
+      <span class="sub">The gap between them — smaller means a busier market</span>
+    </div>
   </section>
 
+  <!-- Board: order book + live activity -->
   <div class="board">
     <section class="panel">
-      <div class="phead"><h2>Order Book</h2><span class="aux">size · price</span></div>
-      <div class="ladder">
-        <div id="asks"></div>
-        <div class="midbar">spread <b id="midSpread">—</b></div>
-        <div id="bids"></div>
+      <div class="phead">
+        <div class="title"><h2>Order book</h2><span class="desc">Everyone currently waiting to buy or sell HELX</span></div>
+        <span class="aux">bars show shares waiting</span>
       </div>
+      <div class="sideband sell"><span class="tag">Sellers</span> want <b>at least</b> these prices <span class="note">— cheapest is the best deal for a buyer</span></div>
+      <div class="colhead"><span># orders</span><span>shares waiting</span><span>price</span></div>
+      <div class="ladder" id="asks"></div>
+      <div class="spreadbar">
+        <div class="ln"></div>
+        <div class="mid"><div class="v" id="midSpread">—</div><div class="k">spread — no deal happens in this gap</div></div>
+        <div class="ln"></div>
+      </div>
+      <div class="ladder" id="bids"></div>
+      <div class="colhead" style="border-bottom:0;border-top:1px solid var(--line)"><span># orders</span><span>shares waiting</span><span>price</span></div>
+      <div class="sideband buy"><span class="tag">Buyers</span> will pay <b>up to</b> these prices <span class="note">— highest is the best deal for a seller</span></div>
     </section>
+
     <section class="panel">
-      <div class="phead"><h2>Time &amp; Sales</h2><span class="aux" id="tapeAux">0 prints</span></div>
-      <div class="tape" id="tape"></div>
+      <div class="phead">
+        <div class="title"><h2>Live activity</h2><span class="desc">Every trade, explained in plain English</span></div>
+        <span class="aux" id="feedAux">0 trades</span>
+      </div>
+      <div class="feed" id="feed"></div>
     </section>
   </div>
 
+  <!-- Lower: chart + order ticket -->
   <div class="lower">
     <section class="panel">
-      <div class="phead"><h2>Last Trade Price</h2><span class="aux" id="chartAux">—</span></div>
+      <div class="phead">
+        <div class="title"><h2>Price over time</h2><span class="desc">Each step is the most recent trade price</span></div>
+        <span class="aux" id="chartAux">—</span>
+      </div>
       <div class="chartbody"><canvas id="chart"></canvas></div>
+      <div class="chart-cap">The line goes <b class="buyC">up</b> when buyers push the price higher and <b class="sellC">down</b> when sellers push it lower.</div>
     </section>
+
     <section class="panel order">
+      <div class="phead" style="padding:0 0 4px;border:0;margin-bottom:2px">
+        <div class="title"><h2>Try it yourself</h2><span class="desc">Place a practice order and watch it hit the market</span></div>
+      </div>
       <div class="toggle">
-        <button data-side="buy" class="on" id="tBuy">Buy</button>
-        <button data-side="sell" id="tSell">Sell</button>
+        <button data-side="buy" class="on" id="tBuy">Buy<span class="s">get shares</span></button>
+        <button data-side="sell" id="tSell">Sell<span class="s">give up shares</span></button>
       </div>
       <div class="frow">
-        <div class="field"><label>Limit price</label><input id="inPrice" inputmode="decimal" value="100.00"></div>
-        <div class="field"><label>Size</label><input id="inSize" inputmode="numeric" value="500"></div>
+        <div class="field">
+          <label>Your price (per share)</label>
+          <div class="inwrap"><span class="pfx">$</span><input id="inPrice" class="haspfx" inputmode="decimal" value="100.00"></div>
+          <div class="help"><a id="useTouch">use best price →</a></div>
+        </div>
+        <div class="field">
+          <label>How many shares</label>
+          <div class="inwrap"><input id="inSize" inputmode="numeric" value="500"></div>
+          <div class="help">shares to trade</div>
+        </div>
       </div>
-      <button class="send" id="send">Send buy order</button>
-      <div class="hint" id="hint">Crosses the book if your price meets the far touch.</div>
+      <div class="preview" id="preview"><span class="pico">💡</span><span id="previewTxt">Choose a price and size — I'll tell you what will happen.</span></div>
+      <button class="send" id="send">Buy shares</button>
+      <div class="result" id="result"></div>
     </section>
   </div>
 
-  <div class="strip">
-    <div class="cell"><div class="k">Orders processed</div><div class="v mono" id="sOps">0</div></div>
-    <div class="cell"><div class="k">Trades printed</div><div class="v mono" id="sMatch">0</div></div>
-    <div class="cell"><div class="k">Resting orders</div><div class="v mono" id="sRest">0</div></div>
-    <div class="cell"><div class="k">Volume</div><div class="v mono" id="sVol">0</div></div>
-    <div class="cell eng"><div class="eng-wrap">
-      <div class="e"><div class="k">Decode</div><div class="v mono">61<small> M/s</small></div></div>
-      <div class="e"><div class="k">Rebuild</div><div class="v mono">9.6<small> M/s</small></div></div>
-      <div class="e"><div class="k">Book p50</div><div class="v mono">83<small> ns</small></div></div>
-      <div class="e"><div class="k">Browser</div><div class="v mono" id="sBench">—</div></div>
-    </div></div>
+  <!-- Beginner stats -->
+  <div class="stats">
+    <div class="stat"><div class="k">Orders placed so far</div><div class="v mono" id="sOps">0</div></div>
+    <div class="stat"><div class="k">Trades completed</div><div class="v mono" id="sMatch">0</div></div>
+    <div class="stat"><div class="k">Orders still waiting</div><div class="v mono" id="sRest">0</div></div>
+    <div class="stat"><div class="k">Shares traded (volume)</div><div class="v mono" id="sVol">0</div></div>
   </div>
 
+  <!-- Under the hood -->
+  <section class="under closed" id="under">
+    <div class="under-head" id="underHead">
+      <span class="l">⚙️ Under the hood — engine performance (for developers)</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="under-body">
+      <p>Behind this friendly demo is a real high-performance matching engine written in Java. These are its measured benchmark numbers — the same work a real exchange does, done fast.</p>
+      <div class="eng-wrap">
+        <div class="e"><div class="k">Decode</div><div class="v">61<small> M msgs/s</small></div></div>
+        <div class="e"><div class="k">Rebuild books</div><div class="v">9.6<small> M msgs/s</small></div></div>
+        <div class="e"><div class="k">Book op (p50)</div><div class="v">83<small> ns</small></div></div>
+        <div class="e"><div class="k">This browser</div><div class="v" id="sBench">—</div></div>
+      </div>
+    </div>
+  </section>
+
   <div class="foot">
-    <span id="footNote">Live demo — matching in your browser.</span>
-    <span>Engine figures: JMH · JDK 24 · 4-shard replay &nbsp;·&nbsp; <a href="https://github.com/SriniV-1/helix" target="_blank" rel="noopener">github.com/SriniV-1/helix</a></span>
+    <span id="footNote">A practice simulation running in your browser.</span>
+    <span>Real engine: Java · JMH · JDK 24 &nbsp;·&nbsp; <a href="https://github.com/SriniV-1/helix" target="_blank" rel="noopener">github.com/SriniV-1/helix</a></span>
   </div>
 </div>
 
 <script>
   /* Point this at your deployed Java engine (DemoServer) to drive Buy/Sell and the
-     book from the REAL engine. Leave empty to use the same origin (the local
-     server) and fall back to the in-browser simulation if none is reachable.
-     You can also override at runtime with ?api=https://your-engine.example.com */
+     book from the REAL engine. Empty = same origin, then fall back to the
+     in-browser simulation. Override at runtime with ?api=https://your-engine */
   window.HELIX_API = "";
 </script>
 <script>
@@ -287,7 +405,6 @@
 
 const TICK = 1;
 class Level { constructor(px){ this.px=px; this.orders=[]; this.shares=0; } }
-
 class Book {
   constructor(){ this.bids=new Map(); this.asks=new Map(); this.byRef=new Map(); this.nextRef=1; }
   side(s){ return s==='B'?this.bids:this.asks; }
@@ -321,8 +438,9 @@ let seed=0x9e3779b9;
 function rng(){ seed^=seed<<13; seed^=seed>>>17; seed^=seed<<5; return ((seed>>>0)/4294967296); }
 
 const API = (new URLSearchParams(location.search).get('api') || window.HELIX_API || '').replace(/\/$/,'');
-let MODE = 'sim';                 // 'sim' | 'connected'
+let MODE = 'sim';
 const flashPx = new Set(); let lastTradeTs = 0;
+let curBid=null, curAsk=null;   // for the order preview
 
 const book=new Book();
 let fair=10000, open=10000, last=fair, prevLast=fair;
@@ -349,61 +467,86 @@ function step(){
   else book.cancelRandom(rng);
 }
 
-/* ---- interaction ---- */
+/* ---- order ticket ---- */
 let mySide='buy';
 const tBuy=document.getElementById('tBuy'), tSell=document.getElementById('tSell'),
-      sendBtn=document.getElementById('send'), hint=document.getElementById('hint');
+      sendBtn=document.getElementById('send'), resultEl=document.getElementById('result'),
+      inPrice=document.getElementById('inPrice'), inSize=document.getElementById('inSize'),
+      previewTxt=document.getElementById('previewTxt'), previewIco=document.querySelector('#preview .pico');
 function setSide(s){ mySide=s; tBuy.classList.toggle('on',s==='buy'); tSell.classList.toggle('on',s==='sell');
-  sendBtn.classList.toggle('sell',s==='sell'); sendBtn.textContent='Send '+s+' order'; }
+  sendBtn.classList.toggle('sell',s==='sell'); sendBtn.textContent = s==='buy'?'Buy shares':'Sell shares'; updatePreview(); }
 tBuy.onclick=()=>setSide('buy'); tSell.onclick=()=>setSide('sell');
+inPrice.oninput=updatePreview; inSize.oninput=updatePreview;
+document.getElementById('useTouch').onclick=()=>{
+  const t = mySide==='buy' ? curAsk : curBid;
+  if(t!=null){ inPrice.value=(t/100).toFixed(2); updatePreview(); }
+};
+
+function updatePreview(){
+  const price=parseFloat(inPrice.value), sz=parseInt(inSize.value,10);
+  if(!(price>0)||!(sz>0)){ previewIco.textContent='💡'; previewTxt.textContent='Choose a price and size — I\'ll tell you what will happen.'; return; }
+  const pc=Math.round(price*100);
+  if(mySide==='buy'){
+    if(curAsk!=null && pc>=curAsk){
+      previewIco.textContent='✅';
+      previewTxt.innerHTML=`This trades <b>right away</b>. You'll buy up to <b>${sz.toLocaleString()}</b> shares from the cheapest sellers, starting at <b>$${(curAsk/100).toFixed(2)}</b>.`;
+    } else {
+      previewIco.textContent='⏳';
+      previewTxt.innerHTML=`This <b>waits in line</b>. Sellers want at least <b>$${curAsk!=null?(curAsk/100).toFixed(2):'—'}</b>, so your $${price.toFixed(2)} offer only trades if a seller drops to your price.`;
+    }
+  } else {
+    if(curBid!=null && pc<=curBid){
+      previewIco.textContent='✅';
+      previewTxt.innerHTML=`This trades <b>right away</b>. You'll sell up to <b>${sz.toLocaleString()}</b> shares to the highest buyers, starting at <b>$${(curBid/100).toFixed(2)}</b>.`;
+    } else {
+      previewIco.textContent='⏳';
+      previewTxt.innerHTML=`This <b>waits in line</b>. Buyers will only pay up to <b>$${curBid!=null?(curBid/100).toFixed(2):'—'}</b>, so your $${price.toFixed(2)} price only trades if a buyer rises to it.`;
+    }
+  }
+}
+
 sendBtn.onclick=async ()=>{
-  const price=parseFloat(document.getElementById('inPrice').value);
-  const sz=parseInt(document.getElementById('inSize').value,10);
-  if(!(price>0)||!(sz>0)){ hint.textContent='Enter a positive price and size.'; return; }
-  const s=mySide==='buy'?'B':'S';
+  const price=parseFloat(inPrice.value), sz=parseInt(inSize.value,10);
+  if(!(price>0)||!(sz>0)){ resultEl.textContent='Enter a price and number of shares first.'; return; }
+  const s=mySide==='buy'?'B':'S'; const verb=mySide==='buy'?'bought':'sold';
   if(MODE==='connected'){
-    try{
-      const j=await postOrder(s, price, sz);
-      hint.textContent = j.filled>0
-        ? `Filled ${j.filled.toLocaleString()} @ up to $${(j.last/100).toFixed(2)}`+(j.residual>0?`, ${j.residual.toLocaleString()} rested.`:'.')
-        : `No cross — ${sz.toLocaleString()} rested at $${price.toFixed(2)}.`;
+    try{ const j=await postOrder(s, price, sz);
+      resultEl.innerHTML = j.filled>0
+        ? `You just <b>${verb} ${j.filled.toLocaleString()}</b> shares at about <b>$${(j.last/100).toFixed(2)}</b>`+(j.residual>0?`, and <b>${j.residual.toLocaleString()}</b> are waiting in line.`:`.`)
+        : `Order placed — <b>${sz.toLocaleString()}</b> shares waiting in line at <b>$${price.toFixed(2)}</b>.`;
       paint(await fetchState());
-    }catch(e){ hint.textContent='Order failed — engine unreachable.'; }
+    }catch(e){ resultEl.textContent='Could not reach the engine.'; }
   } else {
     const px=Math.round(price*100); let got=0; prevLast=last;
-    const res=book.cross(s,sz,px,false,(fpx,fsh,aggr)=>{ onFill(fpx,fsh,aggr); got+=fsh; });
-    if(res.residual>0) book.add(book.nextRef++, s, res.residual, px);
-    hint.textContent = got>0 ? `Filled ${got.toLocaleString()} @ up to $${(last/100).toFixed(2)}`+(res.residual>0?`, ${res.residual.toLocaleString()} rested.`:'.')
-      : `No cross — ${sz.toLocaleString()} rested at $${price.toFixed(2)}.`;
+    const r2=book.cross(s,sz,px,false,(fpx,fsh,aggr)=>{ onFill(fpx,fsh,aggr); got+=fsh; });
+    if(r2.residual>0) book.add(book.nextRef++, s, r2.residual, px);
+    resultEl.innerHTML = got>0
+      ? `You just <b>${verb} ${got.toLocaleString()}</b> shares at about <b>$${(last/100).toFixed(2)}</b>`+(r2.residual>0?`, and <b>${r2.residual.toLocaleString()}</b> are waiting in line.`:`.`)
+      : `Order placed — <b>${sz.toLocaleString()}</b> shares waiting in line at <b>$${price.toFixed(2)}</b>.`;
     paint(simState());
   }
 };
 
-/* ---- data-driven rendering (shared by simulated + connected modes) ----
-   A "state" is { asks, bids, bestBid, bestAsk, last, open, trades, stats } where
-   asks/bids are [priceCents, shares, orders] best-first and trades are
-   {t, px, shares, side} newest-first. Both data sources produce this shape. */
-const asksEl=document.getElementById('asks'), bidsEl=document.getElementById('bids'), tapeEl=document.getElementById('tape');
+/* ---- rendering (shared by both data sources) ---- */
+const asksEl=document.getElementById('asks'), bidsEl=document.getElementById('bids'), feedEl=document.getElementById('feed');
 function maxSh(a,b){ let mx=1; for(const l of a) mx=Math.max(mx,l[1]); for(const l of b) mx=Math.max(mx,l[1]); return mx; }
 function fmt(c){ return (c/100).toFixed(2); }
-function lvlRow(cls,l,mx){ const w=(l[1]/mx*100).toFixed(1); const hit=flashPx.has(l[0])?' hit':'';
-  return `<div class="lvl ${cls}${hit}"><span class="ct">${l[2]}</span>`+
+function lvlRow(cls,l,mx,best){ const w=(l[1]/mx*100).toFixed(1); const hit=flashPx.has(l[0])?' hit':''; const bc=best?' best':'';
+  return `<div class="lvl ${cls}${hit}${bc}"><span class="ct">${l[2]}</span>`+
     `<span class="sz">${l[1].toLocaleString()}</span><span class="px">${fmt(l[0])}</span>`+
     `<span class="bar" style="width:${w}%"></span></div>`; }
-
-function addTape(px,shares,aggr){ tapeRows.unshift({px,shares,aggr,t:Date.now()}); if(tapeRows.length>60) tapeRows.pop(); }
+function addTape(px,shares,aggr){ tapeRows.unshift({px,shares,aggr,t:Date.now()}); if(tapeRows.length>80) tapeRows.pop(); }
 
 function paint(st){
-  // Flash any price that traded since the previous paint; mark those tape rows "new".
   flashPx.clear();
   for(const tr of st.trades){ if(tr.t>lastTradeTs) flashPx.add(tr.px); }
   const newTs=lastTradeTs; lastTradeTs = st.trades.length ? st.trades[0].t : lastTradeTs;
 
   const mx=maxSh(st.asks, st.bids);
-  asksEl.innerHTML = st.asks.slice().reverse().map(l=>lvlRow('ask',l,mx)).join('');
-  bidsEl.innerHTML = st.bids.map(l=>lvlRow('bid',l,mx)).join('');
+  asksEl.innerHTML = st.asks.slice().reverse().map((l,i,arr)=>lvlRow('ask',l,mx,i===arr.length-1)).join('');
+  bidsEl.innerHTML = st.bids.map((l,i)=>lvlRow('bid',l,mx,i===0)).join('');
 
-  const bb=st.bestBid, ba=st.bestAsk;
+  const bb=st.bestBid, ba=st.bestAsk; curBid=bb; curAsk=ba;
   const sp=(bb!=null&&ba!=null)?'$'+((ba-bb)/100).toFixed(2):'—';
   document.getElementById('midSpread').textContent=sp;
   document.getElementById('heroBid').textContent=bb!=null?'$'+fmt(bb):'—';
@@ -415,21 +558,26 @@ function paint(st){
   ce.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'%'; ce.className='chg mono '+(chg>=0?'up':'dn');
   prevLast=st.last;
 
-  tapeEl.innerHTML = st.trades.slice(0,26).map(r=>{ const d=new Date(r.t),
-    t=`${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-    const isNew = r.t>newTs ? ' new' : '';
-    return `<div class="print ${r.side==='B'?'buy':'sell'}${isNew}"><span class="t">${t}</span>`+
-      `<span class="p">${fmt(r.px)}</span><span class="q">${r.shares.toLocaleString()}</span></div>`; }).join('');
-  document.getElementById('tapeAux').textContent=st.stats.trades.toLocaleString()+' prints';
+  // Live activity — plain-English narration of recent trades
+  feedEl.innerHTML = st.trades.slice(0,22).map(r=>{
+    const d=new Date(r.t), tm=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    const isNew=r.t>newTs?' new':'';
+    const buy=r.side==='B';
+    const who=buy?'A buyer':'A seller', verb=buy?'bought':'sold';
+    return `<div class="act ${buy?'buy':'sell'}${isNew}"><span class="ico">${buy?'▲':'▼'}</span>`+
+      `<span class="txt">${who} <b>${verb} ${r.shares.toLocaleString()} shares</b> at <span class="amt">$${fmt(r.px)}</span></span>`+
+      `<span class="tm">${tm}</span></div>`; }).join('');
+  document.getElementById('feedAux').textContent=st.stats.trades.toLocaleString()+' trades';
 
   prices.push(st.last); if(prices.length>260) prices.shift(); renderChart();
   document.getElementById('sOps').textContent=st.stats.orders.toLocaleString();
   document.getElementById('sMatch').textContent=st.stats.trades.toLocaleString();
   document.getElementById('sRest').textContent=st.stats.resting.toLocaleString();
   const v=st.stats.volume; document.getElementById('sVol').textContent=v>1e6?(v/1e6).toFixed(1)+'M':v.toLocaleString();
+  updatePreview();
 }
 
-/* ---- chart: smooth line + gradient area + baseline grid ---- */
+/* ---- chart ---- */
 const cv=document.getElementById('chart'), ctx=cv.getContext('2d');
 function hexA(hex,a){ hex=hex.replace('#',''); if(hex.length===3) hex=hex.split('').map(c=>c+c).join('');
   const n=parseInt(hex,16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
@@ -440,16 +588,16 @@ function renderChart(){
   const w=cv.getBoundingClientRect().width, h=cv.getBoundingClientRect().height;
   ctx.clearRect(0,0,w,h);
   if(prices.length<2) return;
-  const lo=Math.min(...prices), hi=Math.max(...prices), span=Math.max(1,hi-lo);
+  let lo=Math.min(...prices), hi=Math.max(...prices);
+  if(hi-lo < 6){ const mid=(hi+lo)/2; lo=mid-3; hi=mid+3; }   // keep a near-flat line centered, not pinned
+  const span=hi-lo;
   const padX=6, padY=16, X=i=>padX+i/(prices.length-1)*(w-2*padX), Y=p=>padY+(1-(p-lo)/span)*(h-2*padY);
   const css=getComputedStyle(document.documentElement);
-  const bidC=css.getPropertyValue('--bid').trim(), askC=css.getPropertyValue('--ask').trim();
+  const buyC=css.getPropertyValue('--buy').trim(), sellC=css.getPropertyValue('--sell').trim();
   ctx.strokeStyle=css.getPropertyValue('--grid').trim(); ctx.lineWidth=1;
   for(let g=0;g<=2;g++){ const y=padY+g/2*(h-2*padY); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
-  const up = prices[prices.length-1] >= open;
-  const col = up ? bidC : askC;
+  const up = prices[prices.length-1] >= open, col = up ? buyC : sellC;
   const pts=prices.map((p,i)=>[X(i),Y(p)]);
-  // smooth path via midpoint quadratics
   const path=(close)=>{ ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
     for(let i=1;i<pts.length-1;i++){ const mx=(pts[i][0]+pts[i+1][0])/2, my=(pts[i][1]+pts[i+1][1])/2;
       ctx.quadraticCurveTo(pts[i][0],pts[i][1],mx,my); }
@@ -462,16 +610,16 @@ function renderChart(){
   const lx=pts[pts.length-1][0], ly=pts[pts.length-1][1];
   ctx.beginPath(); ctx.arc(lx,ly,3.5,0,7); ctx.fillStyle=col; ctx.fill();
   ctx.beginPath(); ctx.arc(lx,ly,7,0,7); ctx.strokeStyle=hexA(col,.35); ctx.lineWidth=1.5; ctx.stroke();
-  document.getElementById('chartAux').textContent=`$${fmt(lo)} – $${fmt(hi)}`;
+  document.getElementById('chartAux').textContent=`low $${fmt(lo)} · high $${fmt(hi)}`;
 }
 
-/* ---- in-browser micro-benchmark (labeled, honest) ---- */
+/* ---- micro-benchmark (labeled) ---- */
 function microBench(){
   const b=new Book(); for(let i=0;i<2000;i++) b.add(b.nextRef++, i&1?'B':'S', 100, 10000+(i%400));
   const N=300000, t0=performance.now(); let r=b.nextRef;
   for(let i=0;i<N;i++){ const o=b.add(r++, 'B',100, 9800+(i%300)); const lv=o.lv; lv.orders.pop(); lv.shares-=100; b.byRef.delete(o.ref); if(lv.orders.length===0) b.bids.delete(lv.px); }
   const opsSec=N/((performance.now()-t0)/1000);
-  document.getElementById('sBench').innerHTML=(opsSec/1e6).toFixed(1)+'<small> M/s</small>';
+  document.getElementById('sBench').innerHTML=(opsSec/1e6).toFixed(1)+'<small> M ops/s</small>';
 }
 
 /* ---- data sources ---- */
@@ -491,7 +639,7 @@ async function postOrder(side, price, size){
 async function postPace(ms){ try{ await fetch(API+'/api/pace',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({ms})}); }catch(e){} }
 
-/* ---- loops + mode wiring ---- */
+/* ---- loops + mode ---- */
 let paceMs=240, simTimer=null, connTimer=null;
 function simTick(){ prevLast=last; step(); paint(simState()); }
 function scheduleSim(){ if(MODE==='sim' && paceMs>0) simTimer=setTimeout(()=>{ simTick(); scheduleSim(); }, paceMs); }
@@ -504,15 +652,15 @@ document.querySelectorAll('#pace button').forEach(b=> b.onclick=()=>setPace(+b.d
 
 function startConnected(){
   MODE='connected';
-  const badge=document.getElementById('srcBadge'); badge.textContent='Java engine'; badge.classList.add('java');
-  document.getElementById('footNote').textContent='Live — Buy/Sell and the book are driven by the real Java engine (DemoServer).';
+  const badge=document.getElementById('srcBadge'); badge.textContent='Real Java engine'; badge.classList.add('java');
+  document.getElementById('footNote').textContent='Live — every trade here is matched by a real Java engine on the server.';
   const poll=async ()=>{ try{ paint(await fetchState()); }catch(e){} };
   poll(); connTimer=setInterval(poll, 260);
 }
 function startSim(){
   MODE='sim';
   document.getElementById('srcBadge').textContent='Simulated';
-  document.getElementById('footNote').textContent='Live demo — a JS port of the Helix matching engine, matching in your browser.';
+  document.getElementById('footNote').textContent='A practice simulation running in your browser.';
   seedBook(); paint(simState()); scheduleSim();
 }
 async function init(){
@@ -524,7 +672,19 @@ async function init(){
   if(connected) startConnected(); else startSim();
 }
 
-/* ---- theme toggle (light default, persisted) ---- */
+/* ---- collapsibles ---- */
+function collapsible(sec, head, key, defClosed){
+  let st; try{ st=localStorage.getItem(key); }catch(e){}
+  if(st==='closed' || (st==null && defClosed)) sec.classList.add('closed');
+  else sec.classList.remove('closed');
+  head.onclick=()=>{ sec.classList.toggle('closed');
+    try{ localStorage.setItem(key, sec.classList.contains('closed')?'closed':'open'); }catch(e){}
+    sizeCanvas(); renderChart(); };
+}
+collapsible(document.getElementById('intro'), document.getElementById('introHead'), 'helix-intro', false);
+collapsible(document.getElementById('under'), document.getElementById('underHead'), 'helix-under', true);
+
+/* ---- theme ---- */
 const themeBtn=document.getElementById('theme');
 function applyTheme(t){ if(t==='dark') document.documentElement.setAttribute('data-theme','dark');
   else document.documentElement.removeAttribute('data-theme');
